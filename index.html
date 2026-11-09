@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maligaya Sales System</title>
+<style>
+  :root { --ink:#111; --muted:#555; --line:#bbb; --head:#e9eef3; --brand:#1f4e79; --bad:#b00020; --ok:#1b6e3a; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: var(--ink); background:#f4f5f7; margin:0; font-size:14px; }
+  header { background: var(--brand); color:#fff; padding:12px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  header h1 { font-size:18px; margin:0; flex:1; min-width:200px; }
+  header select { font-size:14px; padding:5px; }
+  nav { display:flex; gap:8px; padding:10px 18px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  button { font-family:inherit; font-size:14px; padding:8px 14px; border:1px solid var(--brand); background:#fff; color:var(--brand); border-radius:5px; cursor:pointer; }
+  button:hover { background:#eaf1f8; }
+  button.primary { background:var(--brand); color:#fff; font-weight:bold; }
+  button.primary:hover { background:#163a5c; }
+  button.big { font-size:16px; padding:10px 22px; }
+  button.danger { border-color:var(--bad); color:var(--bad); padding:3px 8px; }
+  main { padding:16px 18px; max-width:1100px; margin:0 auto; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:6px; padding:14px; margin-bottom:14px; }
+  textarea { width:100%; min-height:260px; font-family:Consolas, monospace; font-size:13px; padding:8px; border:1px solid var(--line); border-radius:5px; }
+  table { border-collapse:collapse; width:100%; margin:6px 0; }
+  th, td { border:1px solid #666; padding:3px 6px; }
+  th { background:var(--head); text-align:left; }
+  td.n, th.n { text-align:right; }
+  tr.tot td { font-weight:bold; background:#f0f0f0; }
+  input[type=number], input[type=text], input[type=date] { font-family:inherit; font-size:13px; padding:3px 4px; border:1px solid var(--line); border-radius:3px; }
+  td input[type=number] { width:80px; text-align:right; }
+  td input.note { width:100%; min-width:160px; }
+  .msg { padding:8px 10px; border-radius:5px; margin-top:8px; white-space:pre-wrap; }
+  .msg.ok { background:#e6f4ea; color:var(--ok); }
+  .msg.warn { background:#fdecea; color:var(--bad); }
+  .muted { color:var(--muted); font-size:12px; }
+  .hidden { display:none; }
+  .neg { color:var(--bad); font-weight:bold; }
+
+  /* report */
+  .report { background:#fff; color:#000; padding:18px; border:1px solid var(--line); }
+  .report h1 { font-size:20px; margin:0 0 2px; }
+  .report h2 { font-size:14px; margin:16px 0 4px; border-bottom:1.5px solid #000; padding-bottom:2px; break-after:avoid; }
+  .report table { break-inside:avoid; font-size:12px; }
+  .report .sub { font-size:12px; margin-bottom:6px; }
+  .report .note { font-size:11px; margin:3px 0; }
+  .sign { margin-top:30px; display:flex; gap:40px; }
+  .sign div { flex:1; border-top:1px solid #000; padding-top:3px; font-size:11px; }
+
+  @page { size:A4; margin:12mm; }
+  @media print {
+    body { background:#fff; }
+    header, nav, .no-print { display:none !important; }
+    main { padding:0; max-width:none; }
+    .report { border:none; padding:0; }
+    .pb { break-before:page; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Maligaya Sales System</h1>
+  <label>Month: <select id="monthSel"></select></label>
+</header>
+<nav>
+  <button id="navPaste">1. Paste Notes</button>
+  <button id="navRecords">2. Records</button>
+  <button id="navReport" class="primary">3. MONTHLY REPORT</button>
+  <span style="flex:1"></span>
+  <button id="btnExport">Save backup</button>
+  <button id="btnImport">Load backup</button>
+  <input type="file" id="fileIn" accept=".json" class="hidden">
+</nav>
+<main>
+
+<!-- PASTE -->
+<section id="vPaste">
+  <div class="card">
+    <b>Paste your sales notes here</b>
+    <p class="muted">Same format as your usual notes (Date / Cash / Gcash / Bank / Expenses, the weekly sales line, Salary and Abono). Pasting the same day again replaces it, so you can paste the whole month again at any time.</p>
+    <textarea id="notes" placeholder="Date: october 3,2026&#10;&#10;Cash: 1150&#10;Gcash: 0&#10;Bank: 0&#10;--------------------&#10;Total sales: 1150&#10;&#10;Expenses: 75 + 235 comi"></textarea>
+    <p><button class="primary big" id="btnAdd">Add to records</button> <button id="btnClear">Clear box</button></p>
+    <div id="pasteMsg"></div>
+  </div>
+</section>
+
+<!-- RECORDS -->
+<section id="vRecords" class="hidden">
+  <div class="card">
+    <b>Daily records</b> <span class="muted" id="recTitle"></span>
+    <div id="dailyTable" style="overflow-x:auto"></div>
+    <p><b>Add / fix a day:</b> <input type="date" id="newDate"> <button id="btnNewDay">Add day</button></p>
+    <div id="dayWarn"></div>
+  </div>
+  <div class="card">
+    <b>Salary and owner contributions (abono)</b>
+    <div id="payTable" style="overflow-x:auto"></div>
+  </div>
+  <div class="card">
+    <button class="danger" id="btnDelMonth">Delete this whole month</button>
+  </div>
+</section>
+
+<!-- REPORT -->
+<section id="vReport" class="hidden">
+  <p class="no-print"><button class="primary big" id="btnPrint">Print / Save as PDF</button>
+  <span class="muted">In the print window choose "Save as PDF" as the printer to make a PDF.</span></p>
+  <div id="report" class="report"></div>
+</section>
+
+</main>
+<script>
+"use strict";
+const SEED = {"months":{}};
+const KEY = "maligaya_sales_v1";
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONFULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+let state = load();
+let current = null;
+
+/* ---------- storage ---------- */
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.months) return s; } catch (e) {}
+  return JSON.parse(JSON.stringify(SEED));
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+/* ---------- parsing ---------- */
+const NUM = /\d[\d,]*\.?\d*/g;
+const numsOf = s => (s.match(NUM) || []).map(x => parseFloat(x.replace(/,/g, "")));
+const firstNum = s => { const n = numsOf(s); return n.length ? n[0] : 0; };
+const monthIndex = w => MONFULL.findIndex(m => m.toLowerCase().startsWith(w.toLowerCase().slice(0, 3)));
+
+function expenseTotal(text) {
+  let t = 0, m; const re = /\d[\d,]*\.?\d*/g;
+  while ((m = re.exec(text))) {
+    const after = text.slice(re.lastIndex, re.lastIndex + 12).toLowerCase();
+    if (after.includes("salary")) continue;
+    t += parseFloat(m[0].replace(/,/g, ""));
+  }
+  return t;
+}
+
+function parseNotes(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim());
+  const days = []; let i = 0;
+  while (i < lines.length) {
+    const m = lines[i].match(/^date:\s*([a-z]+)\s*(\d+)\s*,\s*(\d{4})/i);
+    if (!m) { i++; continue; }
+    const rec = { y: +m[3], mo: monthIndex(m[1]), d: +m[2], cash: 0, gcash: 0, bank: 0, total: null, exp: 0, note: "" };
+    let j = i + 1;
+    while (j < lines.length && !/^date:/i.test(lines[j]) && lines[j] !== "---") {
+      const ln = lines[j], low = ln.toLowerCase();
+      if (low.startsWith("cash:")) rec.cash = firstNum(ln.slice(5));
+      else if (low.startsWith("gcash:")) rec.gcash = firstNum(ln.slice(6));
+      else if (low.startsWith("bank:")) rec.bank = firstNum(ln.slice(5));
+      else if (low.startsWith("total sales:")) rec.total = firstNum(ln.slice(12));
+      else if (low.startsWith("expenses:")) { rec.note = ln.slice(9).trim(); rec.exp = expenseTotal(rec.note); }
+      j++;
+    }
+    if (rec.mo >= 0) days.push(rec);
+    i = j;
+  }
+  // week ranges
+  const ranges = [];
+  lines.forEach((ln, k) => {
+    if (ln.toLowerCase().startsWith("weekly sales") && lines[k + 1]) {
+      const m = lines[k + 1].match(/^([a-z]+)\s*(\d+)\s*-\s*(\d+)/i);
+      if (m) ranges.push({ a: +m[2], b: +m[3] });
+    }
+  });
+  // payroll
+  const payroll = []; let mode = null;
+  for (const ln of lines) {
+    const low = ln.toLowerCase();
+    if (low.startsWith("salary:")) { payroll.push({ label: ln.slice(7).trim(), sal: {}, abono: {} }); mode = "sal"; continue; }
+    if (low.includes("abono")) { mode = "abono"; continue; }
+    if (ln.startsWith("---") || low.startsWith("pagcash")) { mode = null; continue; }
+    if (!payroll.length) continue;
+    const cur = payroll[payroll.length - 1];
+    if (mode === "sal") {
+      const m = ln.match(/^([A-Za-z]+)\s*-\s*(.*)$/);
+      if (m && m[2].includes("=")) cur.sal[m[1]] = numsOf(m[2].split("=").pop()).reduce((a, b) => a + b, 0);
+    } else if (mode === "abono") {
+      const m = ln.match(/^([A-Za-z]+)\s*-\s*([\d,.]+)/);
+      if (m) cur.abono[m[1]] = parseFloat(m[2].replace(/,/g, ""));
+    }
+  }
+  return { days, ranges, payroll };
+}
+
+function addToRecords(text) {
+  const p = parseNotes(text);
+  if (!p.days.length) return { ok: false, msg: "No 'Date: ...' entries were found. Check that the text was copied completely." };
+  const warns = [];
+  const first = p.days[0];
+  const firstKey = keyOf(first.y, first.mo);
+  let added = 0; const touched = new Set();
+  p.days.forEach(r => {
+    const k = keyOf(r.y, r.mo);
+    const m = state.months[k] || (state.months[k] = { days: {}, ranges: [], payroll: [] });
+    m.days[r.d] = { cash: r.cash, gcash: r.gcash, bank: r.bank, exp: r.exp, note: r.note, total: r.total };
+    const sum = r.cash + r.gcash + r.bank;
+    if (r.total !== null && Math.abs(sum - r.total) > 0.01)
+      warns.push(`${MON[r.mo]} ${r.d}: Cash + GCash + Bank = ${fmt(sum)} but your notes say Total sales ${fmt(r.total)}. Please check (you can fix it in Records).`);
+    added++; touched.add(k);
+  });
+  const fm = state.months[firstKey];
+  if (p.ranges.length) fm.ranges = p.ranges;
+  if (p.payroll.length) fm.payroll = p.payroll;
+  save(); current = firstKey; refreshMonths();
+  let msg = `Added ${added} day(s) to ${MONFULL[first.mo]} ${first.y}.` +
+    (p.payroll.length ? ` Salary for ${p.payroll.length} week(s) saved.` : " No salary section found.") ;
+  return { ok: true, msg, warns };
+}
+
+/* ---------- helpers ---------- */
+const keyOf = (y, mo) => `${y}-${String(mo + 1).padStart(2, "0")}`;
+const keyParts = k => { const [y, m] = k.split("-"); return { y: +y, mo: +m - 1 }; };
+const sum = a => a.reduce((x, y) => x + y, 0);
+function fmt(n) {
+  if (n === 0 || n === undefined || n === null) return "-";
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function weekOf(k, day) {
+  const m = state.months[k];
+  if (m.ranges && m.ranges.length) {
+    for (let i = 0; i < m.ranges.length; i++) if (day >= m.ranges[i].a && day <= m.ranges[i].b) return i;
+    return day < m.ranges[0].a ? 0 : m.ranges.length - 1;
+  }
+  const { y, mo } = keyParts(k);
+  const off = (new Date(y, mo, 1).getDay() + 6) % 7;
+  return Math.floor((day - 1 + off) / 7);
+}
+function weekLabel(k, i) {
+  const m = state.months[k], { y, mo } = keyParts(k);
+  if (m.ranges && m.ranges[i]) return `${MON[mo]} ${m.ranges[i].a}-${m.ranges[i].b}`;
+  if (m.payroll[i] && m.payroll[i].label) return m.payroll[i].label;
+  if (!(m.ranges && m.ranges.length)) {
+    const off = (new Date(y, mo, 1).getDay() + 6) % 7;
+    const dim = new Date(y, mo + 1, 0).getDate();
+    const a = Math.max(1, i * 7 - off + 1), b = Math.min(dim, i * 7 - off + 7);
+    return `${MON[mo]} ${a}-${b}`;
+  }
+  return `Week ${i + 1}`;
+}
+function compute(k) {
+  const m = state.months[k];
+  const dayNums = Object.keys(m.days).map(Number).sort((a, b) => a - b);
+  let nWeeks = Math.max((m.ranges || []).length, (m.payroll || []).length, 1);
+  dayNums.forEach(d => { nWeeks = Math.max(nWeeks, weekOf(k, d) + 1); });
+  const weeks = Array.from({ length: nWeeks }, (_, i) => ({ label: weekLabel(k, i), cash: 0, gcash: 0, bank: 0, exp: 0, sal: 0, abono: 0 }));
+  dayNums.forEach(d => { const r = m.days[d], w = weeks[weekOf(k, d)]; w.cash += r.cash; w.gcash += r.gcash; w.bank += r.bank; w.exp += r.exp; });
+  const emp = [], own = [];
+  (m.payroll || []).forEach((p, i) => {
+    Object.keys(p.sal).forEach(n => { if (!emp.includes(n)) emp.push(n); });
+    Object.keys(p.abono).forEach(n => { if (!own.includes(n)) own.push(n); });
+    if (weeks[i]) { weeks[i].sal = sum(Object.values(p.sal)); weeks[i].abono = sum(Object.values(p.abono)); }
+  });
+  const T = f => sum(weeks.map(w => w[f]));
+  const tot = { cash: T("cash"), gcash: T("gcash"), bank: T("bank"), exp: T("exp"), sal: T("sal"), abono: T("abono") };
+  tot.sales = tot.cash + tot.gcash + tot.bank;
+  tot.net = tot.sales - tot.exp - tot.sal;
+  return { dayNums, weeks, emp, own, tot };
+}
+
+/* ---------- views ---------- */
+function show(v) {
+  ["Paste", "Records", "Report"].forEach(n => document.getElementById("v" + n).classList.toggle("hidden", n !== v));
+  if (v === "Records") renderRecords();
+  if (v === "Report") renderReport();
+}
+function refreshMonths() {
+  const sel = document.getElementById("monthSel");
+  const keys = Object.keys(state.months).sort();
+  if (!keys.includes(current)) current = keys[keys.length - 1] || null;
+  sel.innerHTML = keys.length ? keys.map(k => { const p = keyParts(k); return `<option value="${k}" ${k === current ? "selected" : ""}>${MONFULL[p.mo]} ${p.y}</option>`; }).join("")
+                              : "<option>(no records yet)</option>";
+}
+
+function renderRecords() {
+  const box = document.getElementById("dailyTable"), pay = document.getElementById("payTable");
+  if (!current) { box.innerHTML = "<p class='muted'>No records yet. Paste your notes first.</p>"; pay.innerHTML = ""; document.getElementById("dayWarn").innerHTML=""; return; }
+  const m = state.months[current], c = compute(current), p = keyParts(current);
+  document.getElementById("recTitle").textContent = `${MONFULL[p.mo]} ${p.y}`;
+  let h = "<table><tr><th>Date</th><th>Week</th><th class='n'>Cash</th><th class='n'>GCash</th><th class='n'>Bank</th><th class='n'>Total</th><th class='n'>Expenses</th><th>Expense notes</th><th></th></tr>";
+  c.dayNums.forEach(d => {
+    const r = m.days[d];
+    h += `<tr><td>${MON[p.mo]} ${d}</td><td>${weekOf(current, d) + 1}</td>` +
+      ["cash", "gcash", "bank"].map(f => `<td><input type="number" data-day="${d}" data-f="${f}" value="${r[f]}"></td>`).join("") +
+      `<td class="n">${fmt(r.cash + r.gcash + r.bank)}</td>` +
+      `<td><input type="number" data-day="${d}" data-f="exp" value="${r.exp}"></td>` +
+      `<td><input type="text" class="note" data-day="${d}" data-f="note" value="${esc(r.note)}"></td>` +
+      `<td><button class="danger" data-del="${d}">x</button></td></tr>`;
+  });
+  h += `<tr class="tot"><td colspan="2">TOTAL</td><td class="n">${fmt(c.tot.cash)}</td><td class="n">${fmt(c.tot.gcash)}</td><td class="n">${fmt(c.tot.bank)}</td><td class="n">${fmt(c.tot.sales)}</td><td class="n">${fmt(c.tot.exp)}</td><td colspan="2"></td></tr></table>`;
+  box.innerHTML = h;
+  document.getElementById("dayWarn").innerHTML = warnList(current).map(w => `<div class="msg warn">${esc(w)}</div>`).join("");
+
+  // payroll
+  let t = "<table><tr><th>Week</th>" + c.emp.map(n => `<th class='n'>${esc(n)}</th>`).join("") + "<th class='n'>Total salary</th>" +
+          c.own.map(n => `<th class='n'>${esc(n)} (abono)</th>`).join("") + "</tr>";
+  c.weeks.forEach((w, i) => {
+    const pr = (m.payroll || [])[i] || { sal: {}, abono: {} };
+    t += `<tr><td>${esc(w.label)}</td>` +
+      c.emp.map(n => `<td><input type="number" step="any" data-pw="${i}" data-kind="sal" data-name="${esc(n)}" value="${pr.sal[n] || 0}"></td>`).join("") +
+      `<td class="n">${fmt(w.sal)}</td>` +
+      c.own.map(n => `<td><input type="number" step="any" data-pw="${i}" data-kind="abono" data-name="${esc(n)}" value="${pr.abono[n] || 0}"></td>`).join("") + "</tr>";
+  });
+  t += "</table>";
+  pay.innerHTML = c.emp.length ? t : "<p class='muted'>No salary section was found in the pasted notes.</p>";
+}
+
+function warnList(k) {
+  const m = state.months[k], p = keyParts(k), out = [];
+  Object.keys(m.days).map(Number).sort((a, b) => a - b).forEach(d => {
+    const r = m.days[d]; const s = r.cash + r.gcash + r.bank;
+    if (r.total !== null && r.total !== undefined && Math.abs(s - r.total) > 0.01)
+      out.push(`${MON[p.mo]} ${d}: Cash + GCash + Bank = ${fmt(s)} but the notes say Total sales ${fmt(r.total)}. Fix the amount above (the warning disappears once you edit this day).`);
+  });
+  return out;
+}
+
+function renderReport() {
+  const el = document.getElementById("report");
+  if (!current) { el.innerHTML = "<p>No records yet. Paste your notes first.</p>"; return; }
+  const m = state.months[current], c = compute(current), p = keyParts(current), T = c.tot;
+  const nc = n => n < 0 ? `<span class="neg">${fmt(n)}</span>` : fmt(n);
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const hasPay = c.emp.length > 0;
+  let h = `<h1>Maligaya Sales Report: ${MONFULL[p.mo]} ${p.y}</h1>
+  <div class="sub">Report date: ${today} &nbsp;|&nbsp; Amounts in PHP</div>
+
+  <h2>Monthly Summary</h2>
+  <table><tr><th>Sales by payment type</th><th class="n">Amount</th></tr>
+  <tr><td>Cash</td><td class="n">${fmt(T.cash)}</td></tr>
+  <tr><td>GCash</td><td class="n">${fmt(T.gcash)}</td></tr>
+  <tr><td>Bank transfer</td><td class="n">${fmt(T.bank)}</td></tr>
+  <tr class="tot"><td>TOTAL SALES</td><td class="n">${fmt(T.sales)}</td></tr></table>
+  <table>
+  <tr><td>Total sales</td><td class="n">${fmt(T.sales)}</td></tr>
+  <tr><td>Less: Expenses</td><td class="n">${fmt(T.exp)}</td></tr>
+  <tr><td>Less: Salaries</td><td class="n">${fmt(T.sal)}</td></tr>
+  <tr class="tot"><td>Net after expenses and salaries</td><td class="n">${nc(T.net)}</td></tr>
+  <tr><td>Owner contributions (abono)${c.own.length ? ": " + c.own.map(n => `${esc(n)} ${fmt(sum((m.payroll||[]).map(x => x.abono[n] || 0)))}`).join(" + ") : ""}</td><td class="n">${fmt(T.abono)}</td></tr>
+  <tr class="tot"><td>Net after owner contributions (abono)</td><td class="n">${nc(T.net + T.abono)}</td></tr></table>`;
+  if (T.net < 0 && T.abono > 0) h += `<div class="note">The net is negative because salaries and expenses were more than sales. ${T.net + T.abono >= 0 ? "The owner contributions (abono) covered the gap." : "The owner contributions (abono) covered part of the gap."}</div>`;
+  else if (T.net < 0) h += `<div class="note">The net is negative because salaries and expenses were more than sales.</div>`;
+
+  h += `<h2>Weekly Summary</h2><table><tr><th>Week</th><th class="n">Cash</th><th class="n">GCash</th><th class="n">Bank</th><th class="n">Total sales</th><th class="n">Expenses</th><th class="n">Salary</th><th class="n">Owner contrib. (abono)</th><th class="n">Net before abono</th></tr>`;
+  c.weeks.forEach(w => {
+    const s = w.cash + w.gcash + w.bank;
+    h += `<tr><td>${esc(w.label)}</td><td class="n">${fmt(w.cash)}</td><td class="n">${fmt(w.gcash)}</td><td class="n">${fmt(w.bank)}</td><td class="n">${fmt(s)}</td><td class="n">${fmt(w.exp)}</td><td class="n">${fmt(w.sal)}</td><td class="n">${fmt(w.abono)}</td><td class="n">${nc(s - w.exp - w.sal)}</td></tr>`;
+  });
+  h += `<tr class="tot"><td>Month</td><td class="n">${fmt(T.cash)}</td><td class="n">${fmt(T.gcash)}</td><td class="n">${fmt(T.bank)}</td><td class="n">${fmt(T.sales)}</td><td class="n">${fmt(T.exp)}</td><td class="n">${fmt(T.sal)}</td><td class="n">${fmt(T.abono)}</td><td class="n">${nc(T.net)}</td></tr></table>`;
+  const best = c.weeks.reduce((a, w) => (w.cash + w.gcash + w.bank) > (a.cash + a.gcash + a.bank) ? w : a, c.weeks[0]);
+  const bd = c.dayNums.reduce((a, d) => { const r = m.days[d], s = r.cash + r.gcash + r.bank; return s > a.s ? { d, s } : a; }, { d: 0, s: -1 });
+  if (T.sales > 0) h += `<div class="note">Best week: ${esc(best.label)} (${fmt(best.cash + best.gcash + best.bank)}). Best day: ${MON[p.mo]} ${bd.d} (${fmt(bd.s)}).</div>`;
+
+  if (c.own.length) {
+    h += `<h2>Owner Contributions (abono)</h2><table><tr><th>Week</th>${c.own.map(n => `<th class="n">${esc(n)}</th>`).join("")}<th class="n">Total</th></tr>`;
+    c.weeks.forEach((w, i) => { const pr = (m.payroll || [])[i] || { abono: {} };
+      h += `<tr><td>${esc(w.label)}</td>${c.own.map(n => `<td class="n">${fmt(pr.abono[n] || 0)}</td>`).join("")}<td class="n">${fmt(w.abono)}</td></tr>`; });
+    h += `<tr class="tot"><td>Month</td>${c.own.map(n => `<td class="n">${fmt(sum((m.payroll||[]).map(x => x.abono[n] || 0)))}</td>`).join("")}<td class="n">${fmt(T.abono)}</td></tr></table>`;
+  }
+  if (hasPay) {
+    h += `<h2>Salary Breakdown</h2><table><tr><th>Week</th>${c.emp.map(n => `<th class="n">${esc(n)}</th>`).join("")}<th class="n">Total</th></tr>`;
+    c.weeks.forEach((w, i) => { const pr = (m.payroll || [])[i] || { sal: {} };
+      h += `<tr><td>${esc(w.label)}</td>${c.emp.map(n => `<td class="n">${fmt(pr.sal[n] || 0)}</td>`).join("")}<td class="n">${fmt(w.sal)}</td></tr>`; });
+    h += `<tr class="tot"><td>Month</td>${c.emp.map(n => `<td class="n">${fmt(sum((m.payroll||[]).map(x => x.sal[n] || 0)))}</td>`).join("")}<td class="n">${fmt(T.sal)}</td></tr></table>`;
+  }
+
+  h += `<h2 class="pb">Daily Log</h2><table><tr><th>Date</th><th class="n">Cash</th><th class="n">GCash</th><th class="n">Bank</th><th class="n">Total</th><th class="n">Expenses</th></tr>`;
+  c.dayNums.forEach(d => { const r = m.days[d];
+    h += `<tr><td>${MON[p.mo]} ${d}</td><td class="n">${fmt(r.cash)}</td><td class="n">${fmt(r.gcash)}</td><td class="n">${fmt(r.bank)}</td><td class="n">${fmt(r.cash + r.gcash + r.bank)}</td><td class="n">${fmt(r.exp)}</td></tr>`; });
+  h += `<tr class="tot"><td>Month</td><td class="n">${fmt(T.cash)}</td><td class="n">${fmt(T.gcash)}</td><td class="n">${fmt(T.bank)}</td><td class="n">${fmt(T.sales)}</td><td class="n">${fmt(T.exp)}</td></tr></table>`;
+  h += `<div class="note">Days not listed had no sales and no expenses. Amounts marked "salary" in the expense notes are not counted as expenses.</div>`;
+  warnList(current).forEach(w => { h += `<div class="note"><b>Check:</b> ${esc(w)}</div>`; });
+  h += `<div class="sign"><div>Prepared by</div><div>Checked by</div></div>`;
+  el.innerHTML = h;
+}
+
+/* ---------- events ---------- */
+document.getElementById("navPaste").onclick = () => show("Paste");
+document.getElementById("navRecords").onclick = () => show("Records");
+document.getElementById("navReport").onclick = () => show("Report");
+document.getElementById("btnPrint").onclick = () => window.print();
+document.getElementById("monthSel").onchange = e => {
+  current = e.target.value;
+  if (!document.getElementById("vRecords").classList.contains("hidden")) renderRecords();
+  if (!document.getElementById("vReport").classList.contains("hidden")) renderReport();
+};
+document.getElementById("btnClear").onclick = () => { document.getElementById("notes").value = ""; document.getElementById("pasteMsg").innerHTML = ""; };
+document.getElementById("btnAdd").onclick = () => {
+  const r = addToRecords(document.getElementById("notes").value);
+  const box = document.getElementById("pasteMsg");
+  if (!r.ok) { box.innerHTML = `<div class="msg warn">${esc(r.msg)}</div>`; return; }
+  box.innerHTML = `<div class="msg ok">${esc(r.msg)}</div>` + r.warns.map(w => `<div class="msg warn">${esc(w)}</div>`).join("") +
+    `<p><button class="primary big" onclick="show('Report')">Open Monthly Report</button> <button onclick="show('Records')">Review records</button></p>`;
+};
+document.getElementById("dailyTable").addEventListener("change", e => {
+  const t = e.target, d = t.dataset.day; if (!d) return;
+  const r = state.months[current].days[d], f = t.dataset.f;
+  r[f] = f === "note" ? t.value : (parseFloat(t.value) || 0);
+  if (f === "note") r.exp = expenseTotal(t.value) || r.exp;
+  r.total = null; save(); renderRecords();
+});
+document.getElementById("dailyTable").addEventListener("click", e => {
+  const d = e.target.dataset.del;
+  if (d && confirm("Delete this day?")) { delete state.months[current].days[d]; save(); renderRecords(); }
+});
+document.getElementById("payTable").addEventListener("change", e => {
+  const t = e.target; if (t.dataset.pw === undefined) return;
+  const m = state.months[current], i = +t.dataset.pw;
+  while (m.payroll.length <= i) m.payroll.push({ label: "", sal: {}, abono: {} });
+  m.payroll[i][t.dataset.kind][t.dataset.name] = parseFloat(t.value) || 0;
+  save(); renderRecords();
+});
+document.getElementById("btnNewDay").onclick = () => {
+  const v = document.getElementById("newDate").value; if (!v) return;
+  const [y, mo, d] = v.split("-").map(Number), k = keyOf(y, mo - 1);
+  const m = state.months[k] || (state.months[k] = { days: {}, ranges: [], payroll: [] });
+  if (!m.days[d]) m.days[d] = { cash: 0, gcash: 0, bank: 0, exp: 0, note: "", total: null };
+  current = k; save(); refreshMonths(); renderRecords();
+};
+document.getElementById("btnDelMonth").onclick = () => {
+  if (current && confirm("Delete ALL records for this month? This cannot be undone.")) { delete state.months[current]; save(); current = null; refreshMonths(); renderRecords(); }
+};
+document.getElementById("btnExport").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 1)], { type: "application/json" }));
+  a.download = "maligaya-sales-backup.json"; a.click();
+};
+document.getElementById("btnImport").onclick = () => document.getElementById("fileIn").click();
+document.getElementById("fileIn").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { try { const s = JSON.parse(rd.result); if (!s.months) throw 0; state = s; save(); current = null; refreshMonths(); show("Records"); } catch (x) { alert("That file is not a Maligaya backup."); } };
+  rd.readAsText(f);
+};
+
+refreshMonths();
+show(current ? "Report" : "Paste");
+</script>
+</body>
+</html>
