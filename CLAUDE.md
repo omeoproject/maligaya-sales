@@ -60,3 +60,7 @@ Report must always say which days did not match their stated total.
 - Do not add a login, backend, or database.
 - Do not give financial advice; the app only totals what was entered.
 - Do not guess missing numbers. Show a warning and let the user fix it in Records.
+
+## Local-only folder
+- `private/` is git-ignored. It holds the real October data and the data-filled copy of the app. Never commit or push it.
+- Keep `index.html` and the private data-filled copy in sync except for `const SEED`.
