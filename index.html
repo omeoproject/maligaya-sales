@@ -29,6 +29,22 @@
   input[type=number], input[type=text], input[type=date] { font-family:inherit; font-size:13px; padding:3px 4px; border:1px solid var(--line); border-radius:3px; }
   td input[type=number] { width:80px; text-align:right; }
   td input.note { width:100%; min-width:160px; }
+  nav button.on { background:var(--brand); color:#fff; font-weight:bold; }
+  .fm label { display:inline-block; margin:4px 12px 4px 0; }
+  .fm input[type=number], .fm input[type=date] { width:140px; font-size:15px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .tile { border:1px solid var(--line); border-radius:6px; padding:10px; background:#fff; }
+  .tile .big { font-size:22px; font-weight:bold; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row span { width:100px; flex:none; }
+  .row b { width:90px; text-align:right; flex:none; }
+  .bar { flex:1; background:#eef2f6; height:16px; border-radius:3px; }
+  .bar i, .col i { display:block; background:var(--brand); border-radius:3px; }
+  .bar i { height:100%; }
+  .cols { display:flex; align-items:flex-end; gap:3px; height:150px; overflow-x:auto; }
+  .col { flex:1; min-width:16px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; }
+  .col i { width:100%; border-radius:3px 3px 0 0; }
+  .col small { font-size:10px; }
   .msg { padding:8px 10px; border-radius:5px; margin-top:8px; white-space:pre-wrap; }
   .msg.ok { background:#e6f4ea; color:var(--ok); }
   .msg.warn { background:#fdecea; color:var(--bad); }
@@ -46,6 +62,28 @@
   .sign { margin-top:30px; display:flex; gap:40px; }
   .sign div { flex:1; border-top:1px solid #000; padding-top:3px; font-size:11px; }
 
+  /* phone */
+  @media (max-width:640px) {
+    header { padding:10px 12px; }
+    header h1 { min-width:0; font-size:17px; }
+    header label, header select { width:100%; font-size:16px; }
+    nav { padding:8px 12px; gap:6px; }
+    nav span { display:none; }
+    nav button { flex:1 1 calc(50% - 6px); min-height:44px; }
+    main { padding:12px; }
+    .card { padding:12px; }
+    button.big { width:100%; min-height:48px; }
+    textarea { min-height:200px; font-size:16px; }
+    input[type=number], input[type=text], input[type=date], select { font-size:16px; min-height:40px; }
+    .fm label { display:block; margin:8px 0; }
+    .fm input[type=number], .fm input[type=date] { width:100%; font-size:16px; }
+    .row span { width:80px; }
+    .row b { width:70px; }
+    .tile .big { font-size:19px; }
+    button.danger { min-height:36px; min-width:36px; }
+    #report { overflow-x:auto; padding:12px; }
+  }
+
   @page { size:A4; margin:12mm; }
   @media print {
     body { background:#fff; }
@@ -62,9 +100,10 @@
   <label>Month: <select id="monthSel"></select></label>
 </header>
 <nav>
-  <button id="navPaste">1. Paste Notes</button>
-  <button id="navRecords">2. Records</button>
-  <button id="navReport" class="primary">3. MONTHLY REPORT</button>
+  <button id="navDash">Dashboard</button>
+  <button id="navPaste">Add Sales</button>
+  <button id="navRecords">Records</button>
+  <button id="navReport">MONTHLY REPORT</button>
   <span style="flex:1"></span>
   <button id="btnExport">Save backup</button>
   <button id="btnImport">Load backup</button>
@@ -74,14 +113,28 @@
 
 <!-- PASTE -->
 <section id="vPaste">
+  <div class="card fm">
+    <b>Add one day</b>
+    <p class="muted">Pick a date. If that day is already saved, its numbers appear so you can correct them. You can also change any day later in Records.</p>
+    <label>Date<br><input type="date" id="fDate"></label>
+    <label>Cash<br><input type="number" id="fCash" min="0" step="any" inputmode="decimal"></label>
+    <label>GCash<br><input type="number" id="fGcash" min="0" step="any" inputmode="decimal"></label>
+    <label>Bank<br><input type="number" id="fBank" min="0" step="any" inputmode="decimal"></label>
+    <label style="display:block">Expenses (like in your notes, e.g. 75 + 235 comi)<br><input type="text" id="fExp" style="width:100%;max-width:420px"></label>
+    <p><button class="primary big" id="btnDay">Save this day</button></p>
+    <div id="dayMsg"></div>
+  </div>
   <div class="card">
-    <b>Paste your sales notes here</b>
+    <b>Or paste your sales notes</b>
     <p class="muted">Same format as your usual notes (Date / Cash / Gcash / Bank / Expenses, the weekly sales line, Salary and Abono). Pasting the same day again replaces it, so you can paste the whole month again at any time.</p>
     <textarea id="notes" placeholder="Date: october 3,2026&#10;&#10;Cash: 1150&#10;Gcash: 0&#10;Bank: 0&#10;--------------------&#10;Total sales: 1150&#10;&#10;Expenses: 75 + 235 comi"></textarea>
     <p><button class="primary big" id="btnAdd">Add to records</button> <button id="btnClear">Clear box</button></p>
     <div id="pasteMsg"></div>
   </div>
 </section>
+
+<!-- DASHBOARD -->
+<section id="vDash" class="hidden"><div id="dash"></div></section>
 
 <!-- RECORDS -->
 <section id="vRecords" class="hidden">
@@ -142,14 +195,16 @@ function expenseTotal(text) {
 
 function parseNotes(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim());
-  const days = []; let i = 0;
+  const days = [], skipped = []; let i = 0;
   while (i < lines.length) {
     const m = lines[i].match(/^date:\s*([a-z]+)\s*(\d+)\s*,\s*(\d{4})/i);
-    if (!m) { i++; continue; }
+    if (!m) { if (/^date:/i.test(lines[i])) skipped.push(lines[i]); i++; continue; }
     const rec = { y: +m[3], mo: monthIndex(m[1]), d: +m[2], cash: 0, gcash: 0, bank: 0, total: null, exp: 0, note: "" };
+    const got = {};
     let j = i + 1;
     while (j < lines.length && !/^date:/i.test(lines[j]) && lines[j] !== "---") {
       const ln = lines[j], low = ln.toLowerCase();
+      for (const f of ["cash", "gcash", "bank"]) if (low.startsWith(f + ":")) got[f] = /\d/.test(ln);
       if (low.startsWith("cash:")) rec.cash = firstNum(ln.slice(5));
       else if (low.startsWith("gcash:")) rec.gcash = firstNum(ln.slice(6));
       else if (low.startsWith("bank:")) rec.bank = firstNum(ln.slice(5));
@@ -157,7 +212,8 @@ function parseNotes(text) {
       else if (low.startsWith("expenses:")) { rec.note = ln.slice(9).trim(); rec.exp = expenseTotal(rec.note); }
       j++;
     }
-    if (rec.mo >= 0) days.push(rec);
+    rec.miss = ["cash", "gcash", "bank"].filter(f => !got[f]);
+    if (rec.mo >= 0) days.push(rec); else skipped.push(lines[i]);
     i = j;
   }
   // week ranges
@@ -185,7 +241,30 @@ function parseNotes(text) {
       if (m) cur.abono[m[1]] = parseFloat(m[2].replace(/,/g, ""));
     }
   }
-  return { days, ranges, payroll };
+  return { days, ranges, payroll, skipped };
+}
+
+/* Read the paste without saving; list everything that looks wrong. */
+function checkNotes(text) {
+  const p = parseNotes(text), warns = [], seen = {};
+  if (!p.days.length) return { ok: false, msg: "No 'Date: ...' entries were found. Check that the text was copied completely." };
+  p.days.forEach(r => {
+    const k = keyOf(r.y, r.mo), id = `${MON[r.mo]} ${r.d}, ${r.y}`;
+    if (seen[k + r.d]) warns.push(`${id} appears twice in this paste. The last one is kept.`);
+    seen[k + r.d] = 1;
+    if (r.d < 1 || r.d > new Date(r.y, r.mo + 1, 0).getDate()) warns.push(`${id}: this date does not exist.`);
+    if (r.miss.length) warns.push(`${id}: ${r.miss.join(", ")} missing or not a number (counted as 0).`);
+    const o = state.months[k] && state.months[k].days[r.d];
+    if (o && (o.cash !== r.cash || o.gcash !== r.gcash || o.bank !== r.bank))
+      warns.push(`${id} is already saved with sales ${fmt(o.cash + o.gcash + o.bank)}; the paste has ${fmt(r.cash + r.gcash + r.bank)}. It will be replaced.`);
+  });
+  p.skipped.forEach(s => warns.push(`Skipped a Date line that could not be read: "${s}"`));
+  const ks = [...new Set(p.days.map(r => keyOf(r.y, r.mo)))];
+  if (ks.length > 1) warns.push(`This paste covers ${ks.length} different months (${ks.join(", ")}). Salary and weeks are saved to the first one only.`);
+  const f = p.days[0], l = p.days[p.days.length - 1];
+  const msg = `Found ${p.days.length} day(s): ${MON[f.mo]} ${f.d} to ${MON[l.mo]} ${l.d}, ${l.y}. ` +
+    `${p.ranges.length} weekly range(s), ${p.payroll.length} salary week(s). Nothing is saved yet.`;
+  return { ok: true, msg, warns };
 }
 
 function addToRecords(text) {
@@ -267,9 +346,11 @@ function compute(k) {
 
 /* ---------- views ---------- */
 function show(v) {
-  ["Paste", "Records", "Report"].forEach(n => document.getElementById("v" + n).classList.toggle("hidden", n !== v));
+  ["Paste", "Records", "Report", "Dash"].forEach(n => document.getElementById("v" + n).classList.toggle("hidden", n !== v));
+  [["Dash", "navDash"], ["Paste", "navPaste"], ["Records", "navRecords"], ["Report", "navReport"]].forEach(([n, id]) => document.getElementById(id).classList.toggle("on", n === v));
   if (v === "Records") renderRecords();
   if (v === "Report") renderReport();
+  if (v === "Dash") renderDash();
 }
 function refreshMonths() {
   const sel = document.getElementById("monthSel");
@@ -310,6 +391,34 @@ function renderRecords() {
   });
   t += "</table>";
   pay.innerHTML = c.emp.length ? t : "<p class='muted'>No salary section was found in the pasted notes.</p>";
+}
+
+function renderDash() {
+  const el = document.getElementById("dash");
+  if (!current) { el.innerHTML = "<p class='muted'>No records yet. Add a day first.</p>"; return; }
+  const m = state.months[current], c = compute(current), p = keyParts(current), T = c.tot;
+  const ds = d => m.days[d].cash + m.days[d].gcash + m.days[d].bank;
+  const n = c.dayNums.length, best = c.dayNums.reduce((b, d) => ds(d) > b.s ? { d, s: ds(d) } : b, { d: 0, s: -1 });
+  const tile = (l, v, cls = "") => `<div class="tile"><div class="muted">${l}</div><div class="big ${cls}">${v}</div></div>`;
+  const rows = (items, max) => items.map(([l, v]) => `<div class="row"><span>${esc(l)}</span><div class="bar"><i style="width:${max > 0 ? Math.max(0, v) / max * 100 : 0}%"></i></div><b>${fmt(v)}</b></div>`).join("");
+  const pct = v => T.sales ? Math.round(v / T.sales * 100) : 0;
+  const ws = c.weeks.map(w => [w.label, w.cash + w.gcash + w.bank]);
+  const mx = Math.max(0, ...c.dayNums.map(ds));
+  const warn = warnList(current).length;
+  const keys = Object.keys(state.months).sort();
+  let h = `<h2 style="margin:0 0 10px">${MONFULL[p.mo]} ${p.y}</h2>` +
+    (warn ? `<div class="msg warn">${warn} day(s) do not match their stated total. Check them in Records.</div>` : "") +
+    `<div class="tiles">` + tile("Total sales", fmt(T.sales)) + tile("Expenses", fmt(T.exp)) + tile("Salary", fmt(T.sal)) +
+    tile("Net before abono", fmt(T.net), T.net < 0 ? "neg" : "") + tile("Owner contributions (abono)", fmt(T.abono)) +
+    tile("Days recorded", n) + tile("Average per day", n ? fmt(Math.round(T.sales / n)) : "-") +
+    tile("Best day", best.d ? `${MON[p.mo]} ${best.d}: ${fmt(best.s)}` : "-") + `</div>` +
+    `<div class="card"><b>Sales by payment type</b>` + rows([[`Cash (${pct(T.cash)}%)`, T.cash], [`GCash (${pct(T.gcash)}%)`, T.gcash], [`Bank (${pct(T.bank)}%)`, T.bank]], Math.max(T.cash, T.gcash, T.bank)) + `</div>` +
+    `<div class="card"><b>Sales per week</b>` + rows(ws, Math.max(0, ...ws.map(w => w[1]))) + `</div>` +
+    `<div class="card"><b>Sales per day</b> <span class="muted">(day of the month; hover or tap a bar for the amount)</span><div class="cols">` +
+    c.dayNums.map(d => `<div class="col" title="${MON[p.mo]} ${d}: ${fmt(ds(d))}"><i style="height:${mx ? ds(d) / mx * 80 : 0}%"></i><small>${d}</small></div>`).join("") + `</div></div>`;
+  if (keys.length > 1) h += `<div class="card"><b>All months</b><table><tr><th>Month</th><th class="n">Sales</th><th class="n">Expenses</th><th class="n">Net before abono</th></tr>` +
+    keys.map(k => { const t = compute(k).tot, q = keyParts(k); return `<tr><td>${MON[q.mo]} ${q.y}</td><td class="n">${fmt(t.sales)}</td><td class="n">${fmt(t.exp)}</td><td class="n">${fmt(t.net)}</td></tr>`; }).join("") + `</table></div>`;
+  el.innerHTML = h;
 }
 
 function warnList(k) {
@@ -382,6 +491,7 @@ function renderReport() {
 }
 
 /* ---------- events ---------- */
+document.getElementById("navDash").onclick = () => show("Dash");
 document.getElementById("navPaste").onclick = () => show("Paste");
 document.getElementById("navRecords").onclick = () => show("Records");
 document.getElementById("navReport").onclick = () => show("Report");
@@ -390,15 +500,50 @@ document.getElementById("monthSel").onchange = e => {
   current = e.target.value;
   if (!document.getElementById("vRecords").classList.contains("hidden")) renderRecords();
   if (!document.getElementById("vReport").classList.contains("hidden")) renderReport();
+  if (!document.getElementById("vDash").classList.contains("hidden")) renderDash();
 };
 document.getElementById("btnClear").onclick = () => { document.getElementById("notes").value = ""; document.getElementById("pasteMsg").innerHTML = ""; };
 document.getElementById("btnAdd").onclick = () => {
+  const c = checkNotes(document.getElementById("notes").value);
+  const box = document.getElementById("pasteMsg");
+  if (!c.ok) { box.innerHTML = `<div class="msg warn">${esc(c.msg)}</div>`; return; }
+  box.innerHTML = `<div class="msg ok">${esc(c.msg)}</div>` + c.warns.map(w => `<div class="msg warn">${esc(w)}</div>`).join("") +
+    `<p><button class="primary big" id="btnConfirm">${c.warns.length ? "Add anyway" : "Confirm and add"}</button> <button onclick="document.getElementById('pasteMsg').innerHTML=''">Cancel</button></p>`;
+  document.getElementById("btnConfirm").onclick = confirmAdd;
+};
+function confirmAdd() {
   const r = addToRecords(document.getElementById("notes").value);
   const box = document.getElementById("pasteMsg");
   if (!r.ok) { box.innerHTML = `<div class="msg warn">${esc(r.msg)}</div>`; return; }
   box.innerHTML = `<div class="msg ok">${esc(r.msg)}</div>` + r.warns.map(w => `<div class="msg warn">${esc(w)}</div>`).join("") +
     `<p><button class="primary big" onclick="show('Report')">Open Monthly Report</button> <button onclick="show('Records')">Review records</button></p>`;
 };
+/* ---------- one-day form ---------- */
+const $ = id => document.getElementById(id);
+const dayOf = () => { const [y, m, d] = $("fDate").value.split("-").map(Number); return { y, mo: m - 1, d, k: keyOf(y, m - 1) }; };
+$("fDate").value = new Date().toLocaleDateString("en-CA");
+$("fDate").onchange = () => {   // load an existing day so it can be corrected
+  if (!$("fDate").value) return;
+  const t = dayOf(), r = state.months[t.k] && state.months[t.k].days[t.d];
+  $("fCash").value = r ? r.cash : ""; $("fGcash").value = r ? r.gcash : ""; $("fBank").value = r ? r.bank : ""; $("fExp").value = r ? r.note : "";
+  $("dayMsg").innerHTML = r ? `<div class="msg ok">This day is already saved. Change the numbers and press Save to correct it.</div>` : "";
+};
+$("btnDay").onclick = () => {
+  const box = $("dayMsg"), bad = t => { box.innerHTML = `<div class="msg warn">${esc(t)}</div>`; };
+  if (!$("fDate").value) return bad("Please pick a date.");
+  const n = id => parseFloat($(id).value) || 0, cash = n("fCash"), gcash = n("fGcash"), bank = n("fBank");
+  if (cash < 0 || gcash < 0 || bank < 0) return bad("Amounts cannot be negative.");
+  if (!$("fCash").value && !$("fGcash").value && !$("fBank").value && !$("fExp").value.trim()) return bad("Type at least one amount.");
+  const t = dayOf(), old = state.months[t.k] && state.months[t.k].days[t.d];
+  if (old && !confirm(`${MON[t.mo]} ${t.d} is already saved. Replace it?`)) return;
+  if (!cash && !gcash && !bank && !confirm("Cash, GCash and Bank are all 0. Save anyway?")) return;
+  const m = state.months[t.k] || (state.months[t.k] = { days: {}, ranges: [], payroll: [] }), note = $("fExp").value.trim();
+  m.days[t.d] = { cash, gcash, bank, exp: expenseTotal(note), note, total: null };
+  save(); current = t.k; refreshMonths();
+  box.innerHTML = `<div class="msg ok">Saved ${MON[t.mo]} ${t.d}: sales ${fmt(cash + gcash + bank)}, expenses ${fmt(expenseTotal(note))}.</div>` +
+    `<p><button onclick="show('Records')">Check it in Records</button> <button onclick="show('Report')">Open Monthly Report</button></p>`;
+};
+
 document.getElementById("dailyTable").addEventListener("change", e => {
   const t = e.target, d = t.dataset.day; if (!d) return;
   const r = state.months[current].days[d], f = t.dataset.f;
