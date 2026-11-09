@@ -15,7 +15,7 @@ big buttons, plain English. Currency is Philippine peso (PHP).
 
 ## Data privacy (important)
 - The repo and the live site are PUBLIC. Never commit real sales, salary, employee or owner data.
-- `const SEED` in `index.html` must stay `{"months":{}}`. Real data is loaded by the owner through "Load backup".
+- Since the owner's decision on 2026-11-09, `index.html` is the password-locked build: records are AES-encrypted inside it (`LOCKED`) and plain `SEED` must stay `{"months":{}}`. Never commit plain data or the password.
 - Records live only in the user's browser `localStorage` (key `maligaya_sales_v1`). Never add code that uploads data anywhere.
 - Don't add analytics, trackers, or external scripts/fonts.
 
@@ -64,3 +64,4 @@ Report must always say which days did not match their stated total.
 ## Local-only folder
 - `private/` is git-ignored. It holds the real October data and the data-filled copy of the app. Never commit or push it.
 - Keep `index.html` and the private data-filled copy in sync except for `const SEED`.
+- Rebuild the locked app: edit `private/app_plain.html` (unlocked copy), then run `node lock_app.mjs <password>` from `private/` and copy the result to `index.html`.
