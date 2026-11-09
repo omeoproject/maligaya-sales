@@ -64,3 +64,4 @@ Report must always say which days did not match their stated total.
 ## Local-only folder
 - `private/` is git-ignored. It holds the real October data and the data-filled copy of the app. Never commit or push it.
 - Keep `index.html` and the private data-filled copy in sync except for `const SEED`.
+- The private app is password-locked: `private/app_plain.html` holds the unlocked copy; run `node lock_app.mjs <password>` from `private/` to rebuild the locked file (data is AES-encrypted inside it). Add new months to `app_plain.html`, then rebuild. The password is never written in the repo.
